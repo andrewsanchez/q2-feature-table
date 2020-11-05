@@ -114,26 +114,41 @@ def filter_seqs(data: pd.Series, table: biom.Table = None,
 
 
 def filter_features_conditionally(table: biom.Table,
-                                  prevalence: float, abundance: float
+                                  abundance: float, prevalence: float,
                                   ) -> biom.Table:
     """
-    A function to perform joint filtering because it makes life better
+    Filter features based on the relative abundance in a certain portion of
+    samples (i.e., features must have a relative abundance of at least
+    `abundance` in at least `prevalence` number of samples). Any samples with
+    a frequency of zero after feature filtering will also be removed.
+
+    Parameters
+    ----------
+    table : biom.Table
+    abundance : float
+        The minimum relative abundance for a feature to be retained.
+    prevalence : float
+        The minimum portion of samples that a feature must have a relative
+        abundance of at least `abundance` to be retained.
+
+    Returns
+    -------
+    BIOM Table : biom.Table
     """
+
     num_observations, num_samples = table.shape
     prevalence = prevalence * num_samples
 
     # Calculates the filtering parameters on the original table
-    def _filter_f(value, id_, metadata):
-        return (value >= abundance).sum() >= prevalence
+    def _filter_f(values, id_, metadata):
+        return (values >= abundance).sum() >= prevalence
 
-    # Normalized the table to get the prevalance
-    # Copy is because biom really wants to normalize the original table. By
-    # copying and not using inplace, the original table is preserved.
-    # Redundant, but better safe that sorry.
+    # Normalize the table to get the prevalence.
+    # inplace=False does not guarantee BIOM won't mutate the table.
+    # .copy() ensures the original table is preserved.
     table_norm = table.copy().norm(axis='sample', inplace=False)
     table_norm.filter(_filter_f, axis='observation', inplace=True)
     filter_ids = table_norm.ids(axis='observation')
-
     new_table = table.filter(filter_ids, axis='observation', inplace=False)
 
     return new_table
